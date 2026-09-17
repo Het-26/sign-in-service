@@ -9,6 +9,37 @@ if "refresh_token" not in st.session_state:
     st.session_state["refresh_token"] = None
 
 
+def try_refresh():
+    if not st.session_state["refresh_token"]:
+        return False
+
+    response = requests.post(
+        f"{API_URL}/refresh",
+        json={"refresh_token": st.session_state["refresh_token"]},
+    )
+    if response.status_code == 200:
+        st.session_state["access_token"] = response.json()["access_token"]
+        return True
+    return False
+
+
+def authed_request(method, path):
+    headers = {"Authorization": f"Bearer {st.session_state['access_token']}"}
+    response = requests.request(method, f"{API_URL}{path}", headers=headers)
+
+    if response.status_code != 401:
+        return response
+
+    if not try_refresh():
+        st.session_state["access_token"] = None
+        st.session_state["refresh_token"] = None
+        return response
+
+    headers = {"Authorization": f"Bearer {st.session_state['access_token']}"}
+    response = requests.request(method, f"{API_URL}{path}", headers=headers)
+    return response
+
+
 def show_auth_page():
     st.title("Sign-In Service")
 
@@ -61,24 +92,27 @@ def show_auth_page():
 def show_me_page():
     st.title("Welcome")
 
-    response = requests.get(
-        f"{API_URL}/me",
-        headers={"Authorization": f"Bearer {st.session_state['access_token']}"},
-    )
+    response = authed_request("GET", "/me")
 
     if response.status_code == 200:
         user = response.json()
         st.write(f"**Username:** {user['username']}")
         st.write(f"**Email:** {user['email']}")
         st.write(f"**Account created:** {user['created_at']}")
+
+        st.caption(f"Access token starts with: {st.session_state['access_token'][:20]}...")
+
+        if st.button("Refresh page"):
+            st.rerun()
+
     else:
-        st.error("Session expired or invalid. Please log in again.")
+        st.error("Session expired. Please log in again.")
+        st.rerun()
 
     if st.button("Log out"):
         st.session_state["access_token"] = None
         st.session_state["refresh_token"] = None
         st.rerun()
-
 
 if st.session_state["access_token"]:
     show_me_page()

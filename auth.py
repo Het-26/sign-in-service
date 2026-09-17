@@ -43,7 +43,7 @@ def create_access_token(username: str) -> str:
 
 
 def create_refresh_token(username: str) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=2)   
     payload = {
         "sub": username,
         "type": "refresh",
